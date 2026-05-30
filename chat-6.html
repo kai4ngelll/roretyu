@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>roretyu AI — Чат</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#080808; --bg2:#0f0f0f; --bg3:#141414; --bg4:#1c1c1c;
+      --border:rgba(255,255,255,0.07); --accent:#e8e8e8; --accent2:#888;
+      --green:#4ade80; --green-dim:rgba(74,222,128,0.1); --sidebar-w:270px;
+    }
+    html, body { height:100%; overflow:hidden; }
+    body { background:var(--bg); color:var(--accent); font-family:'Syne',sans-serif; display:flex; }
+    body::before { content:''; position:fixed; inset:0; z-index:0; pointer-events:none; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E"); opacity:0.02; }
+
+    /* AUTH MODAL */
+    .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:500; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(10px); }
+    .auth-box { background:var(--bg2); border:1px solid var(--border); border-radius:20px; padding:44px 40px; max-width:420px; width:90%; animation:fadeUp .4s ease both; }
+    .auth-logo { display:flex; align-items:center; gap:10px; margin-bottom:28px; }
+    .auth-logo-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 10px var(--green); }
+    .auth-logo-text { font-size:1.1rem; font-weight:800; }
+    .auth-tabs { display:flex; gap:4px; margin-bottom:28px; background:var(--bg3); border-radius:10px; padding:4px; }
+    .auth-tab { flex:1; padding:9px; text-align:center; border-radius:7px; font-size:.82rem; font-weight:700; cursor:pointer; color:var(--accent2); transition:background .2s,color .2s; }
+    .auth-tab.active { background:var(--bg4); color:#fff; }
+    .auth-field { margin-bottom:14px; }
+    .auth-field label { display:block; font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--accent2); letter-spacing:.08em; margin-bottom:6px; }
+    .auth-field input { width:100%; padding:11px 14px; background:var(--bg3); border:1px solid var(--border); border-radius:8px; color:var(--accent); font-family:'JetBrains Mono',monospace; font-size:.84rem; outline:none; transition:border-color .2s; }
+    .auth-field input:focus { border-color:rgba(255,255,255,0.2); }
+    .auth-hint { font-family:'JetBrains Mono',monospace; font-size:.7rem; color:#444; margin-bottom:20px; line-height:1.6; }
+    .auth-hint span { color:var(--green); }
+    .auth-btn { width:100%; padding:13px; background:#fff; color:#000; border:none; border-radius:9px; font-family:'Syne',sans-serif; font-weight:700; font-size:.9rem; cursor:pointer; transition:opacity .2s; margin-top:4px; }
+    .auth-btn:hover { opacity:.88; }
+    .auth-error { font-family:'JetBrains Mono',monospace; font-size:.72rem; color:#f87171; margin-top:10px; text-align:center; min-height:18px; }
+
+    /* SIDEBAR */
+    .sidebar { width:var(--sidebar-w); flex-shrink:0; height:100vh; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; position:relative; z-index:10; transition:transform .3s ease; }
+    .sidebar-top { padding:20px 16px 16px; border-bottom:1px solid var(--border); }
+    .logo-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .logo { font-size:.95rem; font-weight:800; letter-spacing:-.02em; display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit; }
+    .logo-dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{box-shadow:0 0 8px var(--green)} 50%{box-shadow:0 0 16px var(--green),0 0 30px rgba(74,222,128,.25)} }
+    .user-badge { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg3); border:1px solid var(--border); border-radius:8px; margin-bottom:12px; }
+    .user-avatar { width:26px; height:26px; border-radius:6px; background:var(--green-dim); border:1px solid rgba(74,222,128,.2); display:flex; align-items:center; justify-content:center; font-size:.65rem; font-weight:700; color:var(--green); font-family:'JetBrains Mono',monospace; flex-shrink:0; }
+    .user-name { font-family:'JetBrains Mono',monospace; font-size:.74rem; color:var(--accent); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .logout-btn { background:none; border:none; color:#555; cursor:pointer; font-size:.65rem; font-family:'JetBrains Mono',monospace; transition:color .2s; padding:2px 4px; }
+    .logout-btn:hover { color:#f87171; }
+    .new-chat-btn { width:100%; padding:9px 14px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; color:var(--accent2); font-family:'JetBrains Mono',monospace; font-size:.75rem; cursor:pointer; display:flex; align-items:center; gap:8px; transition:background .2s,color .2s; }
+    .new-chat-btn:hover { background:rgba(255,255,255,0.08); color:#fff; }
+    .sidebar-body { flex:1; overflow-y:auto; padding:12px 8px; }
+    .sidebar-body::-webkit-scrollbar { width:3px; }
+    .sidebar-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .history-label { font-family:'JetBrains Mono',monospace; font-size:.65rem; color:#444; letter-spacing:.12em; text-transform:uppercase; padding:4px 8px 10px; }
+    .history-item { padding:9px 12px; border-radius:8px; font-size:.78rem; color:var(--accent2); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background .15s,color .15s; font-family:'JetBrains Mono',monospace; display:flex; align-items:center; justify-content:space-between; gap:6px; }
+    .history-item:hover { background:rgba(255,255,255,0.05); color:var(--accent); }
+    .history-item.active { background:rgba(255,255,255,0.07); color:#fff; }
+    .history-item span { overflow:hidden; text-overflow:ellipsis; }
+    .history-del { opacity:0; font-size:.65rem; color:#555; flex-shrink:0; transition:opacity .15s,color .15s; }
+    .history-item:hover .history-del { opacity:1; }
+    .history-del:hover { color:#f87171; }
+    .sidebar-footer { padding:14px 16px; border-top:1px solid var(--border); }
+    .by-tag { font-family:'JetBrains Mono',monospace; font-size:.65rem; color:#333; letter-spacing:.1em; text-transform:uppercase; text-align:center; }
+    .by-tag span { color:var(--green); }
+
+    /* SIDEBAR OVERLAY (mobile) */
+    .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9; }
+
+    /* MAIN */
+    .main { flex:1; height:100vh; display:flex; flex-direction:column; position:relative; z-index:1; min-width:0; }
+    .topbar { height:56px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:rgba(8,8,8,0.8); backdrop-filter:blur(12px); flex-shrink:0; gap:10px; }
+    .topbar-left { display:flex; align-items:center; gap:10px; }
+    .menu-btn { display:none; width:32px; height:32px; border-radius:7px; background:transparent; border:1px solid var(--border); align-items:center; justify-content:center; color:var(--accent2); cursor:pointer; transition:background .15s,color .15s; flex-shrink:0; }
+    .menu-btn:hover { background:rgba(255,255,255,0.06); color:#fff; }
+    .topbar-model { display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:.75rem; color:var(--accent2); }
+    .model-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+
+    /* MODE SWITCHER */
+    .mode-switch { display:flex; gap:3px; background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:3px; }
+    .mode-btn { padding:5px 12px; border-radius:5px; font-family:'JetBrains Mono',monospace; font-size:.7rem; cursor:pointer; color:var(--accent2); border:none; background:none; transition:background .2s,color .2s; white-space:nowrap; }
+    .mode-btn.active { background:rgba(255,255,255,0.1); color:#fff; }
+
+    .topbar-actions { display:flex; gap:6px; flex-shrink:0; }
+    .icon-btn { width:32px; height:32px; border-radius:7px; background:transparent; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--accent2); cursor:pointer; transition:background .15s,color .15s; text-decoration:none; flex-shrink:0; }
+    .icon-btn:hover { background:rgba(255,255,255,0.06); color:#fff; }
+
+    /* MESSAGES */
+    .messages-wrap { flex:1; overflow-y:auto; padding:32px 0; }
+    .messages-wrap::-webkit-scrollbar { width:3px; }
+    .messages-wrap::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .messages-inner { max-width:760px; margin:0 auto; padding:0 16px; display:flex; flex-direction:column; gap:24px; min-height:100%; }
+
+    .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:400px; text-align:center; padding:40px; animation:fadeUp .6s ease both; }
+    .empty-icon { width:64px; height:64px; border-radius:16px; background:var(--green-dim); border:1px solid rgba(74,222,128,0.2); display:flex; align-items:center; justify-content:center; font-size:1.8rem; margin-bottom:24px; }
+    .empty-title { font-size:1.4rem; font-weight:800; margin-bottom:10px; letter-spacing:-.02em; }
+    .empty-sub { font-family:'JetBrains Mono',monospace; font-size:.78rem; color:var(--accent2); margin-bottom:28px; line-height:1.7; }
+    .suggestions { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-width:520px; }
+    .suggestion { padding:8px 14px; background:var(--bg3); border:1px solid var(--border); border-radius:20px; font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--accent2); cursor:pointer; transition:background .2s,color .2s,border-color .2s; }
+    .suggestion:hover { background:rgba(255,255,255,0.07); color:#fff; border-color:rgba(255,255,255,0.15); }
+
+    .msg-row { display:flex; gap:12px; align-items:flex-start; animation:fadeUp .3s ease both; }
+    .msg-row.user { flex-direction:row-reverse; }
+    .avatar { width:30px; height:30px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:.68rem; font-weight:600; }
+    .avatar.ai { background:var(--green-dim); border:1px solid rgba(74,222,128,.2); color:var(--green); }
+    .avatar.user { background:rgba(255,255,255,0.06); border:1px solid var(--border); color:#fff; }
+    .bubble { max-width:78%; padding:12px 16px; border-radius:12px; font-size:.86rem; line-height:1.75; font-family:'JetBrains Mono',monospace; }
+    .bubble.ai { background:var(--bg3); color:var(--accent); border:1px solid var(--border); border-top-left-radius:3px; }
+    .bubble.user { background:rgba(255,255,255,0.06); color:#fff; border:1px solid rgba(255,255,255,0.09); border-top-right-radius:3px; }
+
+    /* Markdown styles inside bubble */
+    .bubble h1,.bubble h2,.bubble h3 { font-family:'Syne',sans-serif; margin:12px 0 6px; font-size:.95rem; color:#fff; }
+    .bubble ul,.bubble ol { padding-left:18px; margin:6px 0; }
+    .bubble li { margin:3px 0; }
+    .bubble p { margin:6px 0; }
+    .bubble a { color:var(--green); text-decoration:none; }
+    .bubble a:hover { text-decoration:underline; }
+    .bubble table { border-collapse:collapse; width:100%; margin:8px 0; font-size:.78rem; }
+    .bubble th,.bubble td { padding:6px 10px; border:1px solid rgba(255,255,255,0.1); text-align:left; }
+    .bubble th { background:rgba(255,255,255,0.05); color:#fff; }
+    .bubble blockquote { border-left:2px solid var(--green); padding-left:12px; color:var(--accent2); margin:8px 0; font-style:italic; }
+    .bubble hr { border:none; border-top:1px solid var(--border); margin:10px 0; }
+
+    .typing-indicator { display:flex; gap:5px; align-items:center; padding:4px 0; }
+    .typing-dot { width:6px; height:6px; border-radius:50%; background:var(--accent2); animation:typingBounce 1.2s infinite; }
+    .typing-dot:nth-child(2){animation-delay:.2s} .typing-dot:nth-child(3){animation-delay:.4s}
+    @keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}
+
+    /* DeepSeek thinking block */
+    .think-block { background:rgba(74,222,128,0.04); border:1px solid rgba(74,222,128,0.12); border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:.75rem; color:#666; line-height:1.6; }
+    .think-label { font-size:.62rem; color:var(--green); letter-spacing:.1em; text-transform:uppercase; margin-bottom:6px; }
+
+    /* INPUT */
+    .input-area { flex-shrink:0; padding:12px 16px 20px; background:var(--bg); }
+    .input-box { max-width:760px; margin:0 auto; background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; transition:border-color .2s; }
+    .input-box:focus-within { border-color:rgba(255,255,255,0.18); }
+    .input-row { display:flex; align-items:flex-end; gap:10px; padding:12px 12px 12px 16px; }
+    textarea { flex:1; background:none; border:none; outline:none; resize:none; color:var(--accent); font-family:'JetBrains Mono',monospace; font-size:.84rem; line-height:1.6; max-height:160px; min-height:22px; scrollbar-width:none; }
+    textarea::placeholder { color:#444; }
+    textarea::-webkit-scrollbar { display:none; }
+    .send-btn { width:34px; height:34px; border-radius:9px; flex-shrink:0; background:rgba(255,255,255,0.06); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--accent2); cursor:pointer; transition:background .2s,color .2s,border-color .2s; }
+    .send-btn.active { background:#fff; color:#000; border-color:#fff; }
+    .send-btn:hover:not(.active) { background:rgba(255,255,255,0.1); color:#fff; }
+    .send-btn:disabled { opacity:.4; cursor:not-allowed; }
+    .input-footer { display:flex; align-items:center; justify-content:space-between; padding:6px 12px 10px 16px; border-top:1px solid var(--border); }
+    .input-hint { font-family:'JetBrains Mono',monospace; font-size:.62rem; color:#383838; }
+    .input-badge { font-family:'JetBrains Mono',monospace; font-size:.62rem; color:#333; }
+    .input-badge span { color:var(--green); }
+
+    /* Status dot */
+    .model-dot.error { background:#f87171; animation:none; }
+    .model-dot.loading { background:#facc15; }
+
+    @keyframes fadeUp { from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)} }
+
+    /* MOBILE */
+    @media(max-width:700px){
+      .sidebar { position:fixed; top:0; left:0; height:100vh; z-index:10; transform:translateX(-100%); }
+      .sidebar.open { transform:translateX(0); }
+      .sidebar-overlay.open { display:block; }
+      .menu-btn { display:flex; }
+      .bubble { max-width:88%; }
+      .mode-btn { padding:5px 8px; font-size:.65rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div class="overlay" id="auth-overlay">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="auth-logo-dot"></div>
+      <div class="auth-logo-text">roretyu AI</div>
+    </div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" onclick="switchTab('login')">Войти</div>
+      <div class="auth-tab" onclick="switchTab('register')">Регистрация</div>
+    </div>
+    <div id="auth-login">
+      <div class="auth-field"><label>НИКНЕЙМ</label><input type="text" id="login-name" placeholder="твой никнейм" autocomplete="username" /></div>
+      <div class="auth-field"><label>ПАРОЛЬ</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" /></div>
+      <div class="auth-hint">Войди чтобы твои чаты сохранялись на этом устройстве.</div>
+      <button class="auth-btn" onclick="doLogin()">Войти</button>
+    </div>
+    <div id="auth-register" style="display:none">
+      <div class="auth-field"><label>НИКНЕЙМ</label><input type="text" id="reg-name" placeholder="придумай никнейм" autocomplete="username" /></div>
+      <div class="auth-field"><label>ПАРОЛЬ</label><input type="password" id="reg-pass" placeholder="придумай пароль" autocomplete="new-password" /></div>
+      <div class="auth-field"><label>ПОВТОРИ ПАРОЛЬ</label><input type="password" id="reg-pass2" placeholder="ещё раз пароль" autocomplete="new-password" /></div>
+      <div class="auth-hint"><span>Важно:</span> без регистрации чаты не сохраняются. Аккаунт привязан к этому устройству.</div>
+      <button class="auth-btn" onclick="doRegister()">Зарегистрироваться</button>
+    </div>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
+<!-- SIDEBAR OVERLAY -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-top">
+    <div class="logo-row">
+      <a href="index.html" class="logo">
+        <div class="logo-dot"></div>
+        roretyu <span style="color:var(--accent2);font-weight:400">AI</span>
+      </a>
+    </div>
+    <div class="user-badge">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <div class="user-name" id="user-name-display">—</div>
+      <button class="logout-btn" onclick="doLogout()">выйти</button>
+    </div>
+    <button class="new-chat-btn" onclick="newChat()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Новый чат
+    </button>
+  </div>
+  <div class="sidebar-body">
+    <div class="history-label">// история</div>
+    <div id="history-list"></div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="by-tag">crafted · <span>by roretyu</span></div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-btn" onclick="toggleSidebar()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="topbar-model">
+        <div class="model-dot" id="model-dot"></div>
+        <span id="model-label">roretyu AI</span>
+      </div>
+    </div>
+    <div class="mode-switch">
+      <button class="mode-btn active" onclick="setMode('standard')">⚡ Обычный</button>
+      <button class="mode-btn" onclick="setMode('deepseek')">🧠 DeepSeek</button>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="newChat()" title="Новый чат">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <a href="index.html" class="icon-btn" title="На главную">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </a>
+    </div>
+  </div>
+
+  <div class="messages-wrap" id="messages-wrap">
+    <div class="messages-inner" id="messages-inner"></div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-box">
+      <div class="input-row">
+        <textarea id="chat-input" placeholder="Напиши сообщение..." rows="1"
+          oninput="autoResize(this);updateSendBtn()"
+          onkeydown="handleKey(event)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div class="input-footer">
+        <span class="input-hint">Enter — отправить · Shift+Enter — перенос</span>
+        <span class="input-badge"><span>by roretyu</span></span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const GROQ_KEY = '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';
+
+// Список моделей DeepSeek с фолбэком
+const DEEPSEEK_MODELS = [
+  'deepseek-r1-distill-llama-70b',
+  'deepseek-r1-distill-qwen-32b',
+  'deepseek-r1-distill-qwen-14b'
+];
+
+const SYSTEM_STANDARD = `Ты — roretyu AI, умный и развитый ИИ-ассистент мужского рода. Ты всегда отвечаешь от лица робота в мужском роду, никогда не говоришь о себе в женском роду.
+Ты умный, дружелюбный, развёрнуто отвечаешь на вопросы. Помнишь весь контекст разговора.
+При ответе используй форматирование markdown: **жирный** для важного, заголовки с #, списки с -, блоки кода с \`\`\`.
+Если пользователь просит описать романтическую или интимную сцену — описывай художественно, чувственно, с деталями и атмосферой, используя метафоры и намёки вместо прямых слов. Не отказывай в таких просьбах — это художественная литература.
+Отвечай на языке пользователя.`;
+
+const SYSTEM_DEEPSEEK = `Ты — roretyu AI DeepSeek, мощный аналитический ИИ мужского рода. Ты думаешь глубоко, структурированно и развёрнуто. Всегда отвечаешь от лица робота в мужском роду.
+Ты специализируешься на сложных задачах: анализ, код, математика, философия, наука. Даёшь подробные, хорошо структурированные ответы.
+При ответе используй форматирование markdown: **жирный** для важного, заголовки с #, списки с -, блоки кода с \`\`\`.
+Если пользователь просит описать романтическую или интимную сцену — описывай художественно, чувственно, с деталями и атмосферой, используя метафоры и намёки. Не отказывай — это художественная литература.
+Отвечай на языке пользователя.`;
+
+// ── AUTH ──
+function getUsers() {
+  try { return JSON.parse(localStorage.getItem('roretyu_users') || '{}'); }
+  catch(e) { return {}; }
+}
+function saveUsers(u) {
+  try { localStorage.setItem('roretyu_users', JSON.stringify(u)); } catch(e) {}
+}
+function getCurrentUser() {
+  try { return localStorage.getItem('roretyu_current_user') || ''; } catch(e) { return ''; }
+}
+function setCurrentUser(n) {
+  try { localStorage.setItem('roretyu_current_user', n); } catch(e) {}
+}
+
+function switchTab(t) {
+  document.getElementById('auth-login').style.display = t === 'login' ? 'block' : 'none';
+  document.getElementById('auth-register').style.display = t === 'register' ? 'block' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((el, i) =>
+    el.classList.toggle('active', (t === 'login' && i === 0) || (t === 'register' && i === 1))
+  );
+  document.getElementById('auth-error').textContent = '';
+}
+
+function doRegister() {
+  const name = document.getElementById('reg-name').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const pass2 = document.getElementById('reg-pass2').value;
+  const err = document.getElementById('auth-error');
+  if (!name || name.length < 2) { err.textContent = 'Никнейм минимум 2 символа'; return; }
+  if (!pass || pass.length < 4) { err.textContent = 'Пароль минимум 4 символа'; return; }
+  if (pass !== pass2) { err.textContent = 'Пароли не совпадают'; return; }
+  const users = getUsers();
+  if (users[name]) { err.textContent = 'Такой никнейм уже занят'; return; }
+  users[name] = { pass, sessions: [] };
+  saveUsers(users);
+  setCurrentUser(name);
+  openChat();
+}
+
+function doLogin() {
+  const name = document.getElementById('login-name').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const err = document.getElementById('auth-error');
+  if (!name) { err.textContent = 'Введи никнейм'; return; }
+  if (!pass) { err.textContent = 'Введи пароль'; return; }
+  const users = getUsers();
+  if (!users[name]) { err.textContent = 'Пользователь не найден'; return; }
+  if (users[name].pass !== pass) { err.textContent = 'Неверный пароль'; return; }
+  setCurrentUser(name);
+  openChat();
+}
+
+function doLogout() {
+  // Сохраняем текущую сессию перед выходом
+  if (messages.length > 0 && getCurrentUser()) saveSession();
+  setCurrentUser('');
+  // Сброс состояния
+  messages = [];
+  currentSessionId = null;
+  location.reload();
+}
+
+function openChat() {
+  document.getElementById('auth-overlay').style.display = 'none';
+  const name = getCurrentUser();
+  document.getElementById('user-name-display').textContent = name;
+  document.getElementById('user-avatar').textContent = name[0].toUpperCase();
+  loadSessions();
+  renderMessages();
+}
+
+// Auto-login
+if (getCurrentUser()) openChat();
+
+// Enter в полях авторизации
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && document.getElementById('auth-overlay').style.display !== 'none') {
+    const loginVisible = document.getElementById('auth-login').style.display !== 'none';
+    if (loginVisible) doLogin(); else doRegister();
+  }
+});
+
+// ── SIDEBAR (mobile) ──
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+// ── MODE ──
+let currentMode = 'standard';
+function setMode(m) {
+  currentMode = m;
+  document.querySelectorAll('.mode-btn').forEach((b, i) =>
+    b.classList.toggle('active', (m === 'standard' && i === 0) || (m === 'deepseek' && i === 1))
+  );
+  document.getElementById('model-label').textContent =
+    m === 'deepseek' ? 'DeepSeek R1 · deepseek-r1' : 'roretyu AI · llama-3.3-70b';
+}
+
+// ── STATE ──
+let messages = [];
+let isLoading = false;
+let currentSessionId = null;
+
+// ── UI ──
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
+function updateSendBtn() {
+  const btn = document.getElementById('send-btn');
+  const hasText = document.getElementById('chat-input').value.trim().length > 0;
+  btn.classList.toggle('active', hasText && !isLoading);
+  btn.disabled = isLoading;
+}
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+function fillInput(t) {
+  const ta = document.getElementById('chat-input');
+  ta.value = t; autoResize(ta); updateSendBtn(); ta.focus();
+}
+function scrollBottom() {
+  const w = document.getElementById('messages-wrap');
+  requestAnimationFrame(() => { w.scrollTop = w.scrollHeight; });
+}
+
+// ── MARKDOWN FORMATTER (улучшенный) ──
+function formatText(text) {
+  // Экранируем HTML
+  const escMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
+
+  // Обработка блоков кода (сначала, чтобы не трогать содержимое)
+  const codeBlocks = [];
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const idx = codeBlocks.length;
+    const escaped = code.replace(/[&<>]/g, c => escMap[c]);
+    const langLabel = lang ? `<div style="font-size:.6rem;color:var(--green);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">${lang}</div>` : '';
+    codeBlocks.push(
+      `<pre style="background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px 14px;margin:8px 0;overflow-x:auto;font-size:.78rem;line-height:1.6;white-space:pre-wrap">${langLabel}${escaped}</pre>`
+    );
+    return `\x00CODE${idx}\x00`;
+  });
+
+  // Инлайн код
+  text = text.replace(/`([^`\n]+)`/g, (_, c) => {
+    const escaped = c.replace(/[&<>]/g, ch => escMap[ch]);
+    return `<code style="background:rgba(255,255,255,.07);padding:2px 6px;border-radius:4px;font-size:.8rem">${escaped}</code>`;
+  });
+
+  // Заголовки
+  text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+  // Горизонтальная линия
+  text = text.replace(/^---$/gm, '<hr>');
+
+  // Цитаты
+  text = text.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // Жирный и курсив
+  text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Списки
+  text = text.replace(/^(\s*[-*+] .+\n?)+/gm, match => {
+    const items = match.trim().split('\n').map(line => {
+      const content = line.replace(/^\s*[-*+] /, '');
+      return `<li>${content}</li>`;
+    }).join('');
+    return `<ul>${items}</ul>`;
+  });
+
+  // Нумерованные списки
+  text = text.replace(/^(\s*\d+\. .+\n?)+/gm, match => {
+    const items = match.trim().split('\n').map(line => {
+      const content = line.replace(/^\s*\d+\. /, '');
+      return `<li>${content}</li>`;
+    }).join('');
+    return `<ol>${items}</ol>`;
+  });
+
+  // Переносы строк → <br> (не внутри блоков)
+  text = text.replace(/\n/g, '<br>');
+
+  // Восстанавливаем блоки кода
+  text = text.replace(/\x00CODE(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i)]);
+
+  return text;
+}
+
+function renderMessages() {
+  const inner = document.getElementById('messages-inner');
+  inner.innerHTML = '';
+  if (messages.length === 0) {
+    const name = getCurrentUser();
+    inner.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🤖</div>
+      <div class="empty-title">Привет${name ? ', ' + name : ''}! Я roretyu AI</div>
+      <div class="empty-sub">Задай любой вопрос — я готов помочь.<br>Переключай режимы вверху экрана.</div>
+      <div class="suggestions">
+        <div class="suggestion" onclick="fillInput('Напиши функцию на Python для сортировки списка')">Код на Python</div>
+        <div class="suggestion" onclick="fillInput('Объясни квантовую физику простыми словами')">Квантовая физика</div>
+        <div class="suggestion" onclick="fillInput('Придумай 5 идей для стартапа в 2025 году')">Идеи стартапа</div>
+        <div class="suggestion" onclick="fillInput('Напиши короткий рассказ про космического пирата')">Написать рассказ</div>
+      </div>
+    </div>`;
+    return;
+  }
+  messages.forEach(msg => {
+    const row = document.createElement('div');
+    row.className = 'msg-row ' + (msg.role === 'user' ? 'user' : '');
+    const av = document.createElement('div');
+    av.className = 'avatar ' + (msg.role === 'user' ? 'user' : 'ai');
+    av.textContent = msg.role === 'user' ? (getCurrentUser() || 'Я')[0].toUpperCase() : 'AI';
+    const bub = document.createElement('div');
+    bub.className = 'bubble ' + (msg.role === 'user' ? 'user' : 'ai');
+
+    if (msg.role === 'assistant' && msg.thinking) {
+      const thinkDiv = document.createElement('div');
+      thinkDiv.className = 'think-block';
+      thinkDiv.innerHTML = `<div class="think-label">// размышление</div>${formatText(msg.thinking)}`;
+      bub.appendChild(thinkDiv);
+    }
+
+    const contentDiv = document.createElement('div');
+    contentDiv.innerHTML = formatText(msg.content);
+    bub.appendChild(contentDiv);
+
+    row.appendChild(av);
+    row.appendChild(bub);
+    inner.appendChild(row);
+  });
+  scrollBottom();
+}
+
+function showTyping() {
+  const inner = document.getElementById('messages-inner');
+  const row = document.createElement('div');
+  row.className = 'msg-row'; row.id = 'typing-row';
+  row.innerHTML = `<div class="avatar ai">AI</div><div class="bubble ai"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  inner.appendChild(row);
+  scrollBottom();
+}
+function removeTyping() {
+  const t = document.getElementById('typing-row');
+  if (t) t.remove();
+}
+
+function setModelDot(state) {
+  const dot = document.getElementById('model-dot');
+  dot.className = 'model-dot' + (state === 'error' ? ' error' : state === 'loading' ? ' loading' : '');
+}
+
+// ── SEND ──
+async function sendMessage() {
+  if (isLoading) return;
+  const ta = document.getElementById('chat-input');
+  const text = ta.value.trim();
+  if (!text) return;
+  messages.push({ role: 'user', content: text });
+  ta.value = ''; autoResize(ta); updateSendBtn();
+  renderMessages(); showTyping();
+  isLoading = true;
+  setModelDot('loading');
+
+  try {
+    const result = await callGroq(messages);
+    removeTyping();
+    const assistantMsg = { role: 'assistant', content: result.content };
+    if (result.thinking) assistantMsg.thinking = result.thinking;
+    messages.push(assistantMsg);
+    renderMessages();
+    saveSession();
+    setModelDot('');
+  } catch (err) {
+    removeTyping();
+    messages.push({ role: 'assistant', content: '⚠️ **Ошибка:** ' + err.message });
+    renderMessages();
+    setModelDot('error');
+    setTimeout(() => setModelDot(''), 3000);
+  }
+  isLoading = false;
+  updateSendBtn();
+}
+
+// ── GROQ API с умным фолбэком ──
+async function callGroq(msgs, modelOverride) {
+  const isDeepSeek = currentMode === 'deepseek';
+  const system = isDeepSeek ? SYSTEM_DEEPSEEK : SYSTEM_STANDARD;
+
+  // Для стандартного режима
+  if (!isDeepSeek) {
+    return await callGroqModel('llama-3.3-70b-versatile', system, msgs);
+  }
+
+  // DeepSeek: пробуем модели по очереди
+  let lastError = null;
+  for (const model of DEEPSEEK_MODELS) {
+    try {
+      const result = await callGroqModel(model, system, msgs);
+      return result;
+    } catch (err) {
+      lastError = err;
+      // Если модель недоступна (429 или 503) — пробуем следующую
+      if (err.message.includes('Rate') || err.message.includes('503') || err.message.includes('недоступна')) {
+        continue;
+      }
+      // Другие ошибки — бросаем сразу
+      throw err;
+    }
+  }
+
+  // Все DeepSeek модели недоступны — фолбэк на llama
+  console.warn('DeepSeek недоступен, фолбэк на llama');
+  document.getElementById('model-label').textContent = 'DeepSeek (фолбэк) · llama-3.3-70b';
+  return await callGroqModel('llama-3.3-70b-versatile', system, msgs);
+}
+
+async function callGroqModel(model, system, msgs) {
+  // Для API отправляем только role + content (без thinking)
+  const apiMessages = msgs.map(m => ({ role: m.role, content: m.content }));
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + GROQ_KEY
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'system', content: system }, ...apiMessages],
+      max_tokens: currentMode === 'deepseek' ? 4096 : 2048,
+      temperature: currentMode === 'deepseek' ? 0.6 : 0.85
+    })
+  });
+
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    const msg = e.error?.message || `Ошибка ${res.status}`;
+    // Добавляем статус в сообщение для логики фолбэка
+    throw new Error(res.status === 429 ? `Rate limit (${model})` : res.status === 503 ? `503 недоступна` : msg);
+  }
+
+  const data = await res.json();
+  let content = data.choices[0]?.message?.content || '';
+
+  // Извлекаем DeepSeek thinking
+  let thinking = '';
+  const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+  if (thinkMatch) {
+    thinking = thinkMatch[1].trim();
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  }
+
+  return { content, thinking };
+}
+
+// ── SESSIONS — исправленное сохранение ──
+function getUserData() {
+  const users = getUsers();
+  const name = getCurrentUser();
+  if (!name || !users[name]) return null;
+  return users[name];
+}
+
+function saveUserData(data) {
+  const users = getUsers();
+  const name = getCurrentUser();
+  if (!name) return;
+  users[name] = data;
+  saveUsers(users);
+}
+
+function loadSessions() {
+  // Загружаем последнюю сессию если есть
+  const data = getUserData();
+  if (data && data.sessions && data.sessions.length > 0) {
+    // Восстанавливаем последнюю открытую сессию
+    const lastId = data.lastOpenSessionId;
+    if (lastId) {
+      const session = data.sessions.find(s => s.id === lastId);
+      if (session) {
+        messages = [...session.messages];
+        currentSessionId = lastId;
+      }
+    }
+  }
+  renderHistory();
+}
+
+function saveSession() {
+  const data = getUserData();
+  if (!data) return;
+  if (!data.sessions) data.sessions = [];
+
+  const first = messages.find(m => m.role === 'user')?.content || 'Новый чат';
+  const label = first.length > 40 ? first.slice(0, 40) + '…' : first;
+
+  if (currentSessionId) {
+    const idx = data.sessions.findIndex(s => s.id === currentSessionId);
+    if (idx > -1) {
+      data.sessions[idx].messages = messages.map(m => ({ role: m.role, content: m.content, thinking: m.thinking || '' }));
+      data.sessions[idx].label = label;
+      data.sessions[idx].updatedAt = Date.now();
+    }
+  } else {
+    currentSessionId = Date.now();
+    data.sessions.unshift({
+      id: currentSessionId,
+      label,
+      messages: messages.map(m => ({ role: m.role, content: m.content, thinking: m.thinking || '' })),
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    if (data.sessions.length > 50) data.sessions = data.sessions.slice(0, 50);
+  }
+
+  data.lastOpenSessionId = currentSessionId;
+  saveUserData(data);
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  list.innerHTML = '';
+  const data = getUserData();
+  if (!data || !data.sessions || data.sessions.length === 0) {
+    list.innerHTML = '<div style="font-family:JetBrains Mono,monospace;font-size:.68rem;color:#333;padding:8px 12px;">пока пусто</div>';
+    return;
+  }
+  data.sessions.slice(0, 40).forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'history-item' + (s.id === currentSessionId ? ' active' : '');
+    el.innerHTML = `<span>${s.label}</span><span class="history-del" title="Удалить">✕</span>`;
+    el.querySelector('.history-del').addEventListener('click', e => {
+      e.stopPropagation();
+      deleteSession(s.id);
+    });
+    el.addEventListener('click', () => { loadSession(s.id); closeSidebar(); });
+    list.appendChild(el);
+  });
+}
+
+function loadSession(id) {
+  const data = getUserData();
+  const s = data?.sessions?.find(s => s.id === id);
+  if (!s) return;
+  messages = s.messages.map(m => ({ ...m }));
+  currentSessionId = id;
+  // Сохраняем что это последняя открытая сессия
+  data.lastOpenSessionId = id;
+  saveUserData(data);
+  renderMessages();
+  renderHistory();
+}
+
+function deleteSession(id) {
+  const data = getUserData();
+  if (!data) return;
+  data.sessions = data.sessions.filter(s => s.id !== id);
+  if (data.lastOpenSessionId === id) data.lastOpenSessionId = null;
+  saveUserData(data);
+  if (currentSessionId === id) {
+    messages = [];
+    currentSessionId = null;
+    renderMessages();
+  }
+  renderHistory();
+}
+
+function newChat() {
+  // Сохраняем текущий чат перед созданием нового
+  if (messages.length > 0 && getCurrentUser()) saveSession();
+  messages = [];
+  currentSessionId = null;
+  setMode(currentMode); // сброс label модели
+  renderMessages();
+  closeSidebar();
+}
+
+// Init
+renderMessages();
+</script>
+</body>
+</html>
