@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>roretyu AI — Чат</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#080808; --bg2:#0f0f0f; --bg3:#141414;
+      --border:rgba(255,255,255,0.07); --accent:#e8e8e8; --accent2:#888;
+      --green:#4ade80; --green-dim:rgba(74,222,128,0.1); --sidebar-w:260px;
+    }
+    html, body { height: 100%; overflow: hidden; }
+    body { background:var(--bg); color:var(--accent); font-family:'Syne',sans-serif; display:flex; }
+    body::before {
+      content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      opacity:0.02;
+    }
+
+    /* SIDEBAR */
+    .sidebar { width:var(--sidebar-w); flex-shrink:0; height:100vh; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; position:relative; z-index:10; }
+    .sidebar-top { padding:20px 16px 16px; border-bottom:1px solid var(--border); }
+    .logo-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .logo { font-size:.95rem; font-weight:800; letter-spacing:-.02em; display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit; }
+    .logo-dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{box-shadow:0 0 8px var(--green)} 50%{box-shadow:0 0 16px var(--green),0 0 30px rgba(74,222,128,.25)} }
+    .new-chat-btn { width:100%; padding:9px 14px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; color:var(--accent2); font-family:'JetBrains Mono',monospace; font-size:.75rem; cursor:pointer; display:flex; align-items:center; gap:8px; transition:background .2s,color .2s; }
+    .new-chat-btn:hover { background:rgba(255,255,255,0.08); color:#fff; }
+    .sidebar-body { flex:1; overflow-y:auto; padding:12px 8px; }
+    .sidebar-body::-webkit-scrollbar { width:3px; }
+    .sidebar-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .history-label { font-family:'JetBrains Mono',monospace; font-size:.65rem; color:#444; letter-spacing:.12em; text-transform:uppercase; padding:4px 8px 10px; }
+    .history-item { padding:9px 12px; border-radius:8px; font-size:.8rem; color:var(--accent2); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background .15s,color .15s; font-family:'JetBrains Mono',monospace; }
+    .history-item:hover { background:rgba(255,255,255,0.05); color:var(--accent); }
+    .history-item.active { background:rgba(255,255,255,0.07); color:#fff; }
+    .sidebar-footer { padding:14px 16px; border-top:1px solid var(--border); }
+    .by-tag { font-family:'JetBrains Mono',monospace; font-size:.65rem; color:#333; letter-spacing:.1em; text-transform:uppercase; text-align:center; }
+    .by-tag span { color:var(--green); }
+
+    /* MAIN */
+    .main { flex:1; height:100vh; display:flex; flex-direction:column; position:relative; z-index:1; }
+    .topbar { height:56px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; background:rgba(8,8,8,0.8); backdrop-filter:blur(12px); flex-shrink:0; }
+    .topbar-model { display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:.78rem; color:var(--accent2); }
+    .model-dot { width:6px; height:6px; border-radius:50%; background:var(--green); }
+    .topbar-actions { display:flex; gap:8px; }
+    .icon-btn { width:32px; height:32px; border-radius:7px; background:transparent; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--accent2); cursor:pointer; transition:background .15s,color .15s; text-decoration:none; }
+    .icon-btn:hover { background:rgba(255,255,255,0.06); color:#fff; }
+
+    /* MESSAGES */
+    .messages-wrap { flex:1; overflow-y:auto; padding:40px 0; }
+    .messages-wrap::-webkit-scrollbar { width:3px; }
+    .messages-wrap::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .messages-inner { max-width:760px; margin:0 auto; padding:0 24px; display:flex; flex-direction:column; gap:28px; min-height:100%; }
+
+    .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:400px; text-align:center; padding:40px; animation:fadeUp .6s ease both; }
+    .empty-icon { width:64px; height:64px; border-radius:16px; background:var(--green-dim); border:1px solid rgba(74,222,128,0.2); display:flex; align-items:center; justify-content:center; font-size:1.8rem; margin-bottom:24px; }
+    .empty-title { font-size:1.5rem; font-weight:800; margin-bottom:10px; letter-spacing:-.02em; }
+    .empty-sub { font-family:'JetBrains Mono',monospace; font-size:.8rem; color:var(--accent2); margin-bottom:32px; line-height:1.7; }
+    .suggestions { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; max-width:500px; }
+    .suggestion { padding:9px 16px; background:var(--bg3); border:1px solid var(--border); border-radius:20px; font-family:'JetBrains Mono',monospace; font-size:.75rem; color:var(--accent2); cursor:pointer; transition:background .2s,color .2s,border-color .2s; }
+    .suggestion:hover { background:rgba(255,255,255,0.07); color:#fff; border-color:rgba(255,255,255,0.15); }
+
+    .msg-row { display:flex; gap:14px; align-items:flex-start; animation:fadeUp .35s ease both; }
+    .msg-row.user { flex-direction:row-reverse; }
+    .avatar { width:32px; height:32px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:.7rem; font-weight:600; }
+    .avatar.ai { background:var(--green-dim); border:1px solid rgba(74,222,128,.2); color:var(--green); }
+    .avatar.user { background:rgba(255,255,255,0.06); border:1px solid var(--border); color:#fff; }
+    .bubble { max-width:72%; padding:13px 18px; border-radius:12px; font-size:.88rem; line-height:1.7; font-family:'JetBrains Mono',monospace; }
+    .bubble.ai { background:var(--bg3); color:var(--accent); border:1px solid var(--border); border-top-left-radius:3px; }
+    .bubble.user { background:rgba(255,255,255,0.06); color:#fff; border:1px solid rgba(255,255,255,0.09); border-top-right-radius:3px; }
+    .typing-indicator { display:flex; gap:5px; align-items:center; padding:4px 0; }
+    .typing-dot { width:6px; height:6px; border-radius:50%; background:var(--accent2); animation:typingBounce 1.2s infinite; }
+    .typing-dot:nth-child(2){animation-delay:.2s} .typing-dot:nth-child(3){animation-delay:.4s}
+    @keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+
+    /* INPUT */
+    .input-area { flex-shrink:0; padding:16px 24px 24px; background:var(--bg); }
+    .input-box { max-width:760px; margin:0 auto; background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; transition:border-color .2s; }
+    .input-box:focus-within { border-color:rgba(255,255,255,0.18); }
+    .input-row { display:flex; align-items:flex-end; gap:10px; padding:14px 14px 14px 18px; }
+    textarea { flex:1; background:none; border:none; outline:none; resize:none; color:var(--accent); font-family:'JetBrains Mono',monospace; font-size:.85rem; line-height:1.6; max-height:180px; min-height:24px; scrollbar-width:none; }
+    textarea::placeholder { color:#444; }
+    textarea::-webkit-scrollbar { display:none; }
+    .send-btn { width:36px; height:36px; border-radius:9px; flex-shrink:0; background:rgba(255,255,255,0.06); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--accent2); cursor:pointer; transition:background .2s,color .2s,border-color .2s; }
+    .send-btn.active { background:#fff; color:#000; border-color:#fff; }
+    .send-btn:hover:not(.active) { background:rgba(255,255,255,0.1); color:#fff; }
+    .input-footer { display:flex; align-items:center; justify-content:space-between; padding:8px 14px 10px 18px; border-top:1px solid var(--border); }
+    .input-hint { font-family:'JetBrains Mono',monospace; font-size:.65rem; color:#383838; letter-spacing:.06em; }
+    .input-badge { font-family:'JetBrains Mono',monospace; font-size:.65rem; color:#333; letter-spacing:.08em; }
+    .input-badge span { color:var(--green); }
+
+    /* KEY MODAL */
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:1000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px); }
+    .modal { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:40px; max-width:480px; width:90%; }
+    .modal h2 { font-size:1.3rem; font-weight:800; margin-bottom:8px; }
+    .modal p { font-family:'JetBrains Mono',monospace; font-size:.78rem; color:var(--accent2); line-height:1.7; margin-bottom:20px; }
+    .modal input { width:100%; padding:12px 14px; background:var(--bg3); border:1px solid var(--border); border-radius:8px; color:var(--accent); font-family:'JetBrains Mono',monospace; font-size:.82rem; outline:none; margin-bottom:12px; }
+    .modal input:focus { border-color:rgba(255,255,255,0.2); }
+    .modal-btn { width:100%; padding:12px; background:#fff; color:#000; border:none; border-radius:8px; font-family:'Syne',sans-serif; font-weight:700; font-size:.9rem; cursor:pointer; transition:opacity .2s; }
+    .modal-btn:hover { opacity:.85; }
+    .modal-link { display:block; text-align:center; margin-top:14px; font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--accent2); }
+    .modal-link a { color:var(--green); text-decoration:none; }
+
+    @keyframes fadeUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
+    @media(max-width:640px){ .sidebar{display:none;} .bubble{max-width:88%;} }
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-top">
+    <div class="logo-row">
+      <a href="index.html" class="logo">
+        <div class="logo-dot"></div>
+        roretyu <span style="color:var(--accent2);font-weight:400">AI</span>
+      </a>
+    </div>
+    <button class="new-chat-btn" onclick="newChat()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Новый чат
+    </button>
+  </div>
+  <div class="sidebar-body">
+    <div class="history-label">// история</div>
+    <div id="history-list"></div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="by-tag">crafted · <span>by roretyu</span></div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-model">
+      <div class="model-dot"></div>
+      roretyu AI · llama-3.3-70b
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="newChat()" title="Новый чат">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <a href="index.html" class="icon-btn" title="На главную">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </a>
+    </div>
+  </div>
+
+  <div class="messages-wrap" id="messages-wrap">
+    <div class="messages-inner" id="messages-inner"></div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-box">
+      <div class="input-row">
+        <textarea id="chat-input" placeholder="Напиши сообщение..." rows="1"
+          oninput="autoResize(this);updateSendBtn()"
+          onkeydown="handleKey(event)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-footer">
+        <span class="input-hint">Enter — отправить · Shift+Enter — перенос</span>
+        <span class="input-badge"><span>by roretyu</span></span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  // ── API Key ──
+  function getKey() { return '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'; }
+
+  // ── State ──
+  let messages = [];
+  let isLoading = false;
+  let sessions = JSON.parse(localStorage.getItem('roretyu_sessions') || '[]');
+
+  // ── UI helpers ──
+  function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,180)+'px'; }
+  function updateSendBtn() {
+    const v = document.getElementById('chat-input').value.trim();
+    document.getElementById('send-btn').classList.toggle('active', v.length>0);
+  }
+  function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
+  function fillInput(t) { const ta=document.getElementById('chat-input'); ta.value=t; autoResize(ta); updateSendBtn(); ta.focus(); }
+  function scrollBottom() { const w=document.getElementById('messages-wrap'); w.scrollTop=w.scrollHeight; }
+
+  function formatText(text) {
+    return text
+      .replace(/```([\s\S]*?)```/g,'<pre style="background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px 14px;margin:8px 0;overflow-x:auto;font-size:.8rem;line-height:1.6">$1</pre>')
+      .replace(/`([^`]+)`/g,'<code style="background:rgba(255,255,255,.07);padding:2px 6px;border-radius:4px;font-size:.82rem">$1</code>')
+      .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\n/g,'<br>');
+  }
+
+  // ── Render ──
+  function renderMessages() {
+    const inner = document.getElementById('messages-inner');
+    inner.innerHTML = '';
+
+    if (messages.length === 0) {
+      inner.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🤖</div>
+          <div class="empty-title">Привет! Я roretyu AI</div>
+          <div class="empty-sub">Задай любой вопрос — я готов помочь.</div>
+          <div class="suggestions">
+            <div class="suggestion" onclick="fillInput('Напиши функцию на Python')">Напиши функцию на Python</div>
+            <div class="suggestion" onclick="fillInput('Объясни квантовую физику просто')">Объясни квантовую физику</div>
+            <div class="suggestion" onclick="fillInput('Придумай идеи для стартапа')">Идеи для стартапа</div>
+            <div class="suggestion" onclick="fillInput('Помоги написать текст')">Помоги написать текст</div>
+          </div>
+        </div>`;
+      return;
+    }
+
+    messages.forEach(msg => {
+      const row = document.createElement('div');
+      row.className = 'msg-row ' + (msg.role==='user'?'user':'');
+      const av = document.createElement('div');
+      av.className = 'avatar ' + (msg.role==='user'?'user':'ai');
+      av.textContent = msg.role==='user'?'Я':'AI';
+      const bub = document.createElement('div');
+      bub.className = 'bubble ' + (msg.role==='user'?'user':'ai');
+      bub.innerHTML = formatText(msg.content);
+      row.appendChild(av); row.appendChild(bub);
+      inner.appendChild(row);
+    });
+    scrollBottom();
+  }
+
+  function showTyping() {
+    const inner = document.getElementById('messages-inner');
+    const row = document.createElement('div');
+    row.className='msg-row'; row.id='typing-row';
+    row.innerHTML=`<div class="avatar ai">AI</div><div class="bubble ai"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+    inner.appendChild(row); scrollBottom();
+  }
+  function removeTyping() { const t=document.getElementById('typing-row'); if(t)t.remove(); }
+
+  // ── Send ──
+  async function sendMessage() {
+    if (isLoading) return;
+    const ta = document.getElementById('chat-input');
+    const text = ta.value.trim();
+    if (!text) return;
+    messages.push({role:'user',content:text});
+    ta.value=''; autoResize(ta); updateSendBtn();
+    renderMessages(); showTyping(); isLoading=true;
+    try {
+      const reply = await callGroq(messages);
+      removeTyping();
+      messages.push({role:'assistant',content:reply});
+      renderMessages(); saveSession();
+    } catch(err) {
+      removeTyping();
+      messages.push({role:'assistant',content:'⚠️ Ошибка: '+err.message});
+      renderMessages();
+    }
+    isLoading=false;
+  }
+
+  // ── Groq API ──
+  async function callGroq(msgs) {
+    const key = getKey();
+    if (!key) throw new Error('Нет API ключа');
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:JSON.stringify({
+        model:'llama-3.3-70b-versatile',
+        messages:[
+          {role:'system',content:'Ты умный ИИ-ассистент roretyu AI. Отвечай на языке пользователя, дружелюбно и развёрнуто. Создан by roretyu.'},
+          ...msgs
+        ],
+        max_tokens:1500
+      })
+    });
+    if (!res.ok) { const e=await res.json(); throw new Error(e.error?.message||'Ошибка '+res.status); }
+    const data = await res.json();
+    return data.choices[0].message.content;
+  }
+
+  // ── History (в памяти браузера) ──
+  function saveSession() {
+    const first = messages.find(m=>m.role==='user')?.content||'Новый чат';
+    const label = first.length>38?first.slice(0,38)+'…':first;
+    sessions.unshift({id:Date.now(),label,messages:[...messages]});
+    if(sessions.length>30) sessions.pop();
+    localStorage.setItem('roretyu_sessions',JSON.stringify(sessions));
+    renderHistory();
+  }
+  function renderHistory() {
+    const list = document.getElementById('history-list');
+    list.innerHTML='';
+    sessions.slice(0,20).forEach(s=>{
+      const el=document.createElement('div');
+      el.className='history-item';
+      el.textContent=s.label;
+      el.onclick=()=>{messages=[...s.messages];renderMessages();};
+      list.appendChild(el);
+    });
+  }
+  function newChat() { messages=[]; renderMessages(); }
+
+  // Init
+  sessions = JSON.parse(localStorage.getItem('roretyu_sessions')||'[]');
+  renderHistory();
+  renderMessages();
+</script>
+</body>
+</html>
